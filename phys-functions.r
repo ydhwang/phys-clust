@@ -1,127 +1,132 @@
 # function collections
 
-bootstrap.test.sub <- function(k1,k2){ # this gives a single permutation results
-	# k1 and k2 are two vectors with K's
-	combined.k <- c(k1,k2)
-	k.length <- length(combined.k)
-	shuffled <- sample(combined.k)
-	k1.b <- shuffled[1:length(k1)]
-	k2.b <- shuffled[(1+length(k1)):k.length]
-	mean(abs(k1.b - k2.b))
+bootstrap.test.sub <- function(k1, k2) {
+  # this gives a single permutation results k1 and k2 are two vectors with K's
+  combined.k <- c(k1, k2)
+  k.length <- length(combined.k)
+  shuffled <- sample(combined.k)
+  k1.b <- shuffled[1:length(k1)]
+  k2.b <- shuffled[(1 + length(k1)):k.length]
+  mean(abs(k1.b - k2.b))
 }
 
-bootstrap.test <- function(k1,k2, B){
-	# bootstrap test; repeats bootstrap.test.sub B times
-	re <- replicate(B, bootstrap.test.sub(k1,k2))
-	test.stat <- mean(abs(k1-k2))
-	p.val <- mean(test.stat <= re)
-	return(p.val)
+bootstrap.test <- function(k1, k2, B) {
+  # bootstrap test; repeats bootstrap.test.sub B times
+  re <- replicate(B, bootstrap.test.sub(k1, k2))
+  test.stat <- mean(abs(k1 - k2))
+  p.val <- mean(test.stat <= re)
+  return(p.val)
 }
 
 
 
-colmax <- function(x){ apply(x, 2, max, na.rm=TRUE)} # useful function
+colmax <- function(x) {
+  apply(x, 2, max, na.rm = TRUE)
+}  # useful function
 
-rqclass <- function (x, k) 
-{ # modified from mclust::qclass
+rqclass <- function(x, k) {
+  # modified from mclust::qclass
   x <- as.vector(x)
-  # eps <- sqrt(.Machine$double.eps) 
-  # numerical accuracy problem if scale of x is large, so make tolerance
-  # scale dependent
-  eps <- sd(x)*sqrt(.Machine$double.eps)
+  # eps <- sqrt(.Machine$double.eps) numerical accuracy problem if scale of x is large,
+  # so make tolerance scale dependent
+  eps <- sd(x) * sqrt(.Machine$double.eps)
   q <- NA
   n <- k
-  while(length(q) < (k+1))
-  { n <- n + 1
-  	qx <- seq(from = 0, to = 1, length = n)
-  	qx <- jitter(qx, amount= 0.5/n  )
-  	qx[1] <- 0
-  	qx[length(qx)] <- 1
-    q <- unique(quantile(x, qx)) 
+  while (length(q) < (k + 1)) {
+    n <- n + 1
+    qx <- seq(from = 0, to = 1, length = n)
+    qx <- jitter(qx, amount = 0.5/n)
+    qx[1] <- 0
+    qx[length(qx)] <- 1
+    q <- unique(quantile(x, qx))
   }
-  if(length(q) > (k+1))
-  { dq <- diff(q)
-    nr <- length(q)-k-1
+  if (length(q) > (k + 1)) {
+    dq <- diff(q)
+    nr <- length(q) - k - 1
     q <- q[-order(dq)[1:nr]]
   }
   q[1] <- min(x) - eps
   q[length(q)] <- max(x) + eps
   cl <- rep(0, length(x))
-  for(i in 1:k) 
-     { cl[ x >= q[i] & x < q[i+1] ] <- i }
-  return(cl)
+  for (i in 1:k) {
+    cl[x >= q[i] & x < q[i + 1]] <- i
+  }
+  cl
 }
 
 
-rand.gmm <- function(x, G, model){
-# x: the vector of the (random) coefficients 
-# G: number of component
-# model: takes value between "E" (Equal variance) or "V" (varying variance)
-
-zz <- mclust::unmap(rqclass(x, G)) # random assignment with jittering from the equal partition
-delta <- 1000
-ms <- mclust::mstep(modelName=model, data=x, z=zz)
-old.param <- ms$paraneters$mean # random initial guess for mean
-flag <- TRUE
-while (delta >1e-5 & flag ){ #EM step
-	
-	flag <- sum(is.na(ms$parameters$mean)) == 0
-	es <- mclust::estep(modelName=model, data=x, z=zz, parameters=ms$parameters)
-	zz <- es$z
-	ms <- mclust::mstep(modelName=model, data=x, z=zz)
-	new.param <- ms$parameters$mean
-	delta <- sum(abs(old.param-new.param))
-	old.param <- ms$parameters$mean
-	
-}
- if (flag){
- ZZ <- ms$z
- Ms <- ms$parameters$mean
- S <- sqrt(ms$parameters$variance$sigmasq)
- p <- ms$parameters$pro
-
- # for matrix calculation
- X <- matrix(rep(x, length(Ms)), nrow=length(x))
- MM <- matrix(rep(Ms,each=length(x)), nrow=length(x))
- PP <- matrix(rep(p ,each=length(x)), nrow=length(x))
-
- # distinction between E and V
- # get loglikelihood
- if (!(model %in% c("E", "V"))) {stop("model must be either E or V")}
- if (model=="E"){
- SS <- matrix(rep(S, length(Ms)*length(x)), nrow=length(x))
- }
- if (model=="V"){
- SS <- matrix(rep(S ,each=length(x)), nrow=length(x))
- } 
- 
- loglik <- sum(log(rowSums(dnorm(X, MM, SS )*PP)))
- b <- bic(modelName=model, loglik=loglik, n=length(x), d=1, G=G, equalPro=FALSE)
- }else{b <- NA}
- return(b)
-}
-
-EV.rep <- function(x, M=100, G){
-	# internal function used in K.out.
-	r1 <- replicate(M, rand.gmm(x, G, "V"))
-	r2 <- replicate(M, rand.gmm(x, G, "E"))
-	V <- max(r1, na.rm=TRUE)
-	E <- max(r2, na.rm=TRUE)
-	out <- c(E,V, G)
-	names(out) <- c("E","V", "G")
-	return(out)
+rand.gmm <- function(x, G, model) {
+  # x: the vector of the (random) coefficients G: number of component model: takes
+  # value between 'E' (Equal variance) or 'V' (varying variance)
+  
+  zz <- mclust::unmap(rqclass(x, G))  # random assignment with jittering from the equal partition
+  delta <- 1000
+  ms <- mclust::mstep(modelName = model, data = x, z = zz)
+  old.param <- ms$paraneters$mean  # random initial guess for mean
+  flag <- TRUE
+  while (delta > 1e-05 & flag) {
+    # EM step
+    
+    flag <- sum(is.na(ms$parameters$mean)) == 0
+    es <- mclust::estep(modelName = model, data = x, z = zz, parameters = ms$parameters)
+    zz <- es$z
+    ms <- mclust::mstep(modelName = model, data = x, z = zz)
+    new.param <- ms$parameters$mean
+    delta <- sum(abs(old.param - new.param))
+    old.param <- ms$parameters$mean
+    
+  }
+  if (flag) {
+    ZZ <- ms$z
+    Ms <- ms$parameters$mean
+    S <- sqrt(ms$parameters$variance$sigmasq)
+    p <- ms$parameters$pro
+    
+    # for matrix calculation
+    X <- matrix(rep(x, length(Ms)), nrow = length(x))
+    MM <- matrix(rep(Ms, each = length(x)), nrow = length(x))
+    PP <- matrix(rep(p, each = length(x)), nrow = length(x))
+    
+    # distinction between E and V get loglikelihood
+    if (!(model %in% c("E", "V"))) {
+      stop("model must be either E or V")
+    }
+    if (model == "E") {
+      SS <- matrix(rep(S, length(Ms) * length(x)), nrow = length(x))
+    }
+    if (model == "V") {
+      SS <- matrix(rep(S, each = length(x)), nrow = length(x))
+    }
+    
+    loglik <- sum(log(rowSums(dnorm(X, MM, SS) * PP)))
+    b <- bic(modelName = model, loglik = loglik, n = length(x), d = 1, G = G, equalPro = FALSE)
+  } else {
+    b <- NA
+  }
+  return(b)
 }
 
+EV.rep <- function(x, M = 100, G) {
+  # internal function used in K.out
+  r1 <- replicate(M, rand.gmm(x, G, "V"))
+  r2 <- replicate(M, rand.gmm(x, G, "E"))
+  V <- max(r1, na.rm = TRUE)
+  E <- max(r2, na.rm = TRUE)
+  out <- c(E, V, G)
+  names(out) <- c("E", "V", "G")
+  return(out)
+}
 
 
-K.out <- function(x, M=100, g.max=9){
-	evout <- list()
-	for (g in 1:g.max){
-		evout[[g]] <- EV.rep(x, 200, g)
-	}
-	sum.out <- do.call("rbind", evout)
-	sum.out <- data.frame(sum.out)
-	G <- which(sum.out==max(sum.out[,c("E", "V")]), arr.ind=TRUE)[1]
-	md <- c("E", "V")[which(sum.out==max(sum.out[,c("E", "V")]), arr.ind=TRUE)[2]]
-	return(list(G=G, model=md))
+
+K.out <- function(x, M = 100, g.max = 9) {
+  evout <- list()
+  for (g in 1:g.max) {
+    evout[[g]] <- EV.rep(x, 200, g)
+  }
+  sum.out <- do.call("rbind", evout)
+  sum.out <- data.frame(sum.out)
+  G <- which(sum.out == max(sum.out[, c("E", "V")]), arr.ind = TRUE)[1]
+  md <- c("E", "V")[which(sum.out == max(sum.out[, c("E", "V")]), arr.ind = TRUE)[2]]
+  return(list(G = G, model = md))
 }
